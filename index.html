@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fake News Detector</title>
+  <style>
+    :root {
+      --bg-page: #f7f4ee;
+      --bg-sidebar: #f3efe7;
+      --bg-surface: #fbf9f5;
+      --bg-user-bubble: #ece7de;
+      --bg-active-chat: #e6dfd4;
+      --bg-hover: #eae3d8;
+      --text-primary: #1f1c18;
+      --text-secondary: #5c554c;
+      --text-muted: #847c71;
+      --border-color: #d9d1c5;
+      --border-strong: #c8beb0;
+      --btn-dark: #25211d;
+      --btn-dark-text: #faf8f4;
+      --fake-color: #b83227;
+      --fake-bg: rgba(184, 50, 39, 0.05);
+      --real-color: #1f7a4c;
+      --real-bg: rgba(31, 122, 76, 0.06);
+      --unverified-color: #a16207;
+      --unverified-bg: rgba(161, 98, 7, 0.06);
+      --serif: "Georgia", "Cambria", "Times New Roman", serif;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    html[data-theme="dark"] {
+      --bg-page: #181614;
+      --bg-sidebar: #141210;
+      --bg-surface: #201d1a;
+      --bg-user-bubble: #2b2723;
+      --bg-active-chat: #2f2a25;
+      --bg-hover: #26221e;
+      --text-primary: #f1ece4;
+      --text-secondary: #beb5a8;
+      --text-muted: #8e8579;
+      --border-color: #35302a;
+      --border-strong: #464038;
+      --btn-dark: #f1ece4;
+      --btn-dark-text: #181614;
+      --fake-color: #f07167;
+      --fake-bg: rgba(240, 113, 103, 0.10);
+      --real-color: #52b788;
+      --real-bg: rgba(82, 183, 136, 0.10);
+      --unverified-color: #eab308;
+      --unverified-bg: rgba(234, 179, 8, 0.10);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--serif);
+      background: var(--bg-page);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    /* ---------- Top Header with Double Newspaper Hairline ---------- */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--bg-page);
+      border-bottom: 1px solid var(--border-strong);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .topbar::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -4px;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border-strong);
+      background: transparent;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: var(--text-primary);
+    }
+    .icon-btn:hover { background: var(--bg-hover); }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .mode-switch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+    .mode-label {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .mode-label.active {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--btn-dark);
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      transition: 0.2s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      background: var(--bg-page);
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+    .switch input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    /* ---------- Main Layout ---------- */
+    .workspace {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      margin-top: 3px;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 248px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px 16px;
+      flex-shrink: 0;
+      transition: width 0.2s ease, padding 0.2s ease, opacity 0.2s ease;
+    }
+    .sidebar.collapsed {
+      width: 0;
+      padding: 0;
+      overflow: hidden;
+      border-right: none;
+      opacity: 0;
+    }
+
+    .new-chat-btn {
+      width: 100%;
+      padding: 11px 16px;
+      background: var(--btn-dark);
+      color: var(--btn-dark-text);
+      border: none;
+      border-radius: 10px;
+      font-family: var(--serif);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .new-chat-btn:hover { opacity: 0.9; }
+
+    .sidebar-heading {
+      font-size: 0.92rem;
+      color: var(--text-secondary);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .clear-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--sans);
+      font-size: 0.76rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+    .clear-btn:hover {
+      background: var(--bg-hover);
+      color: var(--fake-color);
+    }
+
+    .chat-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .chat-item {
+      padding: 9px 11px;
+      border-radius: 8px;
+      font-size: 0.94rem;
+      color: var(--text-primary);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border: none;
+      background: transparent;
+      text-align: left;
+      font-family: var(--serif);
+    }
+    .chat-item:hover { background: var(--bg-hover); }
+    .chat-item.active {
+      background: var(--bg-active-chat);
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding-top: 14px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+    .theme-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    /* ---------- Chat Area ---------- */
+    .main-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg-page);
+    }
+
+    .messages-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px 16px;
+    }
+    .messages-inner {
+      max-width: 780px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .empty-state {
+      text-align: center;
+      margin-top: 10vh;
+      color: var(--text-secondary);
+    }
+    .empty-state h2 {
+      font-size: 1.75rem;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .empty-state p {
+      font-size: 1rem;
+      margin-bottom: 20px;
+    }
+    .sample-chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+    .sample-chip {
+      padding: 7px 14px;
+      border: 1px solid var(--border-strong);
+      border-radius: 999px;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: var(--serif);
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    .sample-chip:hover { background: var(--bg-hover); }
+
+    /* User Bubble */
+    .user-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-bubble {
+      background: var(--bg-user-bubble);
+      color: var(--text-primary);
+      padding: 13px 20px;
+      border-radius: 16px;
+      font-size: 1.05rem;
+      max-width: 82%;
+      line-height: 1.45;
+    }
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--bg-user-bubble);
+      border: 1px solid var(--border-color);
+      display: grid;
+      place-items: center;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    /* Assistant Verification Block */
+    .bot-block {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .verdict-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .verdict-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 13px;
+      border-radius: 9px;
+      font-family: var(--sans);
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      border: 1.5px solid;
+    }
+    .verdict-badge.FAKE {
+      color: var(--fake-color);
+      border-color: var(--fake-color);
+      background: var(--fake-bg);
+    }
+    .verdict-badge.REAL {
+      color: var(--real-color);
+      border-color: var(--real-color);
+      background: var(--real-bg);
+    }
+    .verdict-badge.UNVERIFIED {
+      color: var(--unverified-color);
+      border-color: var(--unverified-color);
+      background: var(--unverified-bg);
+    }
+
+    .meta-line {
+      font-family: var(--sans);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .headline-answer {
+      font-size: 1.48rem;
+      font-weight: 700;
+      line-height: 1.32;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .reason-note {
+      font-size: 0.96rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Editorial Source Card */
+    .evidence-card {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px 20px;
+    }
+    .evidence-inner {
+      border-left: 2px solid var(--border-strong);
+      padding-left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .source-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .source-pub {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .trust-pill {
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 2px 9px;
+    }
+    .source-link {
+      color: var(--text-primary);
+      font-size: 0.96rem;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      width: fit-content;
+    }
+    .source-link:hover { opacity: 0.75; }
+    .source-quote {
+      font-size: 0.98rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+
+    /* Dataset Model Score Grid */
+    .dataset-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    /* Loading indicator */
+    .typing-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.96rem;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-strong);
+      border-top-color: var(--text-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Bottom Input Bar ---------- */
+    .composer-wrap {
+      padding: 12px 24px 22px;
+      background: var(--bg-page);
+    }
+    .composer-box {
+      max-width: 780px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      padding: 8px 10px 8px 18px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    }
+    .composer-box input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: var(--serif);
+      font-size: 1rem;
+      color: var(--text-primary);
+    }
+    .composer-box input::placeholder { color: var(--text-muted); }
+
+    .send-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: var(--btn-dark);
+      color: var(--btn-dark-text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    @media (max-width: 720px) {
+      .sidebar { position: fixed; z-index: 20; top: 64px; bottom: 0; left: 0; }
+      .brand-title { font-size: 1.25rem; }
+      .mode-switch { font-size: 0.82rem; gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-left">
+      <button class="icon-btn" id="sidebarToggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="4" y1="7" x2="20" y2="7"></line>
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <line x1="4" y1="17" x2="20" y2="17"></line>
+        </svg>
+      </button>
+      <div class="brand-title">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <path d="M4 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5z"></path>
+          <path d="M19 9h2a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2h-1"></path>
+          <path d="M8 9h7M8 13h4"></path>
+          <path d="M13 15l2 2 4-4"></path>
+        </svg>
+        <span>Fake News Detector</span>
+      </div>
+    </div>
+
+    <div class="mode-switch">
+      <span class="mode-label active" id="lblLive">Live Search</span>
+      <label class="switch" title="Switch between Live Search and Dataset Model">
+        <input type="checkbox" id="modeToggle" />
+        <span class="slider"></span>
+      </label>
+      <span class="mode-label" id="lblDataset">Dataset Model</span>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar" id="sidebar">
+      <button class="new-chat-btn" id="newChatBtn">
+        <span>+</span> New Chat
+      </button>
+      <div class="sidebar-heading">
+        <span>Recent chats</span>
+        <button class="clear-btn" id="clearHistoryBtn" title="Clear all recent chats">Clear</button>
+      </div>
+      <div class="chat-list" id="chatList"></div>
+
+      <div class="sidebar-footer">
+        <span class="theme-label" id="lblLight">☀ Light</span>
+        <label class="switch" title="Switch Light / Dark theme">
+          <input type="checkbox" id="themeToggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="theme-label" id="lblDark">☾ Dark</span>
+      </div>
+    </aside>
+
+    <main class="main-pane">
+      <div class="messages-scroll" id="messagesScroll">
+        <div class="messages-inner" id="messagesInner"></div>
+      </div>
+
+      <form class="composer-wrap" id="claimForm">
+        <div class="composer-box">
+          <input
+            type="text"
+            id="claimInput"
+            autocomplete="off"
+            placeholder="Ask about another news claim or paste an article URL..."
+          />
+          <button type="submit" class="send-btn" id="sendBtn" aria-label="Verify claim">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById("sidebar");
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    const modeToggle = document.getElementById("modeToggle");
+    const lblLive = document.getElementById("lblLive");
+    const lblDataset = document.getElementById("lblDataset");
+    const themeToggle = document.getElementById("themeToggle");
+    const newChatBtn = document.getElementById("newChatBtn");
+    const chatList = document.getElementById("chatList");
+    const messagesScroll = document.getElementById("messagesScroll");
+    const messagesInner = document.getElementById("messagesInner");
+    const claimForm = document.getElementById("claimForm");
+    const claimInput = document.getElementById("claimInput");
+    const sendBtn = document.getElementById("sendBtn");
+
+    let currentMode = "live"; // "live" | "dataset"
+    let chats = [];
+    let activeChatId = null;
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function shortTitle(text) {
+      const clean = text.replace(/^https?:\/\/(www\.)?/, "").trim();
+      return clean.length > 26 ? clean.slice(0, 26) + "…" : clean;
+    }
+
+    // Sidebar & Theme & Mode Toggles
+    sidebarToggle.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
+
+    function updateModeUI() {
+      currentMode = modeToggle.checked ? "dataset" : "live";
+      lblLive.classList.toggle("active", currentMode === "live");
+      lblDataset.classList.toggle("active", currentMode === "dataset");
+      claimInput.placeholder =
+        currentMode === "live"
+          ? "Ask about another news claim or paste an article URL..."
+          : "Enter news text for offline style check (or claim | evidence)...";
+    }
+    modeToggle.addEventListener("change", updateModeUI);
+    lblLive.addEventListener("click", () => { modeToggle.checked = false; updateModeUI(); });
+    lblDataset.addEventListener("click", () => { modeToggle.checked = true; updateModeUI(); });
+
+    function applyTheme(dark) {
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      themeToggle.checked = dark;
+      localStorage.setItem("fnd_theme", dark ? "dark" : "light");
+    }
+    themeToggle.addEventListener("change", () => applyTheme(themeToggle.checked));
+    document.getElementById("lblLight").addEventListener("click", () => applyTheme(false));
+    document.getElementById("lblDark").addEventListener("click", () => applyTheme(true));
+    applyTheme(localStorage.getItem("fnd_theme") === "dark");
+
+    function createNewChat(switchNow = true) {
+      const chat = { id: "chat_" + Date.now() + "_" + Math.random().toString(16).slice(2), title: "New verification", turns: [] };
+      chats.unshift(chat);
+      if (switchNow) activeChatId = chat.id;
+      renderSidebar();
+      renderChat();
+      return chat;
+    }
+
+    document.getElementById("clearHistoryBtn").addEventListener("click", async () => {
+      try { await fetch("/api/history", { method: "DELETE" }); } catch (_) {}
+      chats = [];
+      activeChatId = null;
+      createNewChat(true);
+      claimInput.focus();
+    });
+
+    newChatBtn.addEventListener("click", () => {
+      const existingEmpty = chats.find((c) => c.turns.length === 0);
+      if (existingEmpty) {
+        activeChatId = existingEmpty.id;
+        renderSidebar();
+        renderChat();
+      } else {
+        createNewChat(true);
+      }
+      claimInput.focus();
+    });
+
+    function renderSidebar() {
+      chatList.innerHTML = "";
+      chats.forEach((c) => {
+        const btn = document.createElement("button");
+        btn.className = "chat-item" + (c.id === activeChatId ? " active" : "");
+        btn.textContent = c.title;
+        btn.title = c.title;
+        btn.addEventListener("click", () => {
+          activeChatId = c.id;
+          renderSidebar();
+          renderChat();
+        });
+        chatList.appendChild(btn);
+      });
+    }
+
+    function renderBotResponse(data) {
+      if (data.error) {
+        return `<div class="bot-block">
+          <span class="verdict-badge UNVERIFIED">! ERROR</span>
+          <div class="reason-note">${escapeHtml(data.error)}</div>
+        </div>`;
+      }
+
+      const v = data.verdict || "UNVERIFIED";
+      const symbol = v === "REAL" ? "✓" : v === "FAKE" ? "✕" : "?";
+      const metaParts = [];
+      if (data.confidence) metaParts.push(`${Math.round(data.confidence * 100)}% confidence`);
+      if (data.avg_credibility) metaParts.push(`Source trust ${Number(data.avg_credibility).toFixed(2)}`);
+      if (data.latency_s !== undefined) metaParts.push(`${data.latency_s}s`);
+      if (data.cached) metaParts.push("cached");
+
+      // Clean, plain-English headlines ONLY for Offline Dataset Model mode (Live Search untouched)
+      let displayHeadline = data.headline || "";
+      let showReason = Boolean(data.reason && data.reason !== data.headline);
+      if (data.mode === "dataset") {
+        showReason = false; // Hide technical offline subtitles circled by user
+        const upperH = displayHeadline.toUpperCase();
+        if (upperH.includes("CONTRADICT")) {
+          displayHeadline = "The provided evidence proves this claim is false.";
+        } else if (upperH.includes("SUPPORT")) {
+          displayHeadline = "The provided evidence confirms this claim is true.";
+        } else if (upperH.includes("NOT ENOUGH")) {
+          displayHeadline = "The provided evidence does not confirm or deny this claim.";
+        }
+      }
+
+      let cardsHtml = "";
+      if (data.mode === "dataset" && data.style_models) {
+        cardsHtml = `<div class="dataset-grid">` + Object.entries(data.style_models).map(([name, s]) => {
+          const title = name.toLowerCase() === "isot"
+            ? "ISOT Dataset (News Articles)"
+            : (name.toLowerCase() === "liar" ? "LIAR Dataset (Short Claims)" : name.toUpperCase() + " Model");
+          const nbPct = Math.round(Number(s.naive_bayes) * 100);
+          const lrPct = Math.round(Number(s.logistic) * 100);
+          const riskPct = Math.round((nbPct + lrPct) / 2);
+          const pillLabel = s.svm_margin > 0 ? "Fake / Clickbait Tone" : "Normal News Tone";
+          return `
+          <div class="evidence-card">
+            <div class="evidence-inner">
+              <div class="source-header">
+                <span class="source-pub">${escapeHtml(title)}</span>
+                <span class="trust-pill">${escapeHtml(pillLabel)}</span>
+              </div>
+              <div class="source-quote">
+                <strong>Fake-Style Risk: ${riskPct}%</strong>
+              </div>
+            </div>
+          </div>`;
+        }).join("") + `</div>`;
+      } else if (data.sources && data.sources.length) {
+        cardsHtml = data.sources.map((src) => `
+          <div class="evidence-card">
+            <div class="evidence-inner">
+              <div class="source-header">
+                <span class="source-pub">${escapeHtml(src.publisher)}</span>
+                <span class="trust-pill">Trust ${Number(src.trust_weight || 0.3).toFixed(2)} · ${escapeHtml(src.trust_tier || "Source")}</span>
+              </div>
+              ${src.url ? `<a class="source-link" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer">Official record / source ↗</a>` : ""}
+              ${src.snippet ? `<div class="source-quote">“${escapeHtml(src.snippet)}”</div>` : ""}
+            </div>
+          </div>`).join("");
+      }
+
+      return `<div class="bot-block">
+        <div class="verdict-row">
+          <span class="verdict-badge ${escapeHtml(v)}">${symbol} ${escapeHtml(v)}</span>
+          ${metaParts.length ? `<span class="meta-line">${escapeHtml(metaParts.join("  ·  "))}</span>` : ""}
+        </div>
+        <div class="headline-answer">${escapeHtml(displayHeadline)}</div>
+        ${showReason ? `<div class="reason-note">${escapeHtml(data.reason)}</div>` : ""}
+        ${cardsHtml}
+      </div>`;
+    }
+
+    function renderChat(isLoading = false) {
+      const active = chats.find((c) => c.id === activeChatId);
+      if (!active || active.turns.length === 0) {
+        messagesInner.innerHTML = `
+          <div class="empty-state">
+            <h2>Verify any claim, headline, or news URL</h2>
+            <p>Use <strong>Live Search</strong> for real-time web verification or <strong>Dataset Model</strong> for offline Colab ML analysis.</p>
+          </div>`;
+        return;
+      }
+
+      messagesInner.innerHTML = active.turns.map((turn) => {
+        const userHtml = `
+          <div class="user-row">
+            <div class="user-bubble">${escapeHtml(turn.query)}</div>
+            <div class="user-avatar" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="8" r="4"></circle>
+                <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"></path>
+              </svg>
+            </div>
+          </div>`;
+        const botHtml = turn.loading
+          ? `<div class="typing-row"><div class="spinner"></div><span>Verifying against ${currentMode === "live" ? "live web sources" : "offline dataset models"}...</span></div>`
+          : renderBotResponse(turn.response);
+        return userHtml + botHtml;
+      }).join("");
+
+      messagesScroll.scrollTop = messagesScroll.scrollHeight;
+    }
+
+    claimForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const query = claimInput.value.trim();
+      if (!query) return;
+
+      let active = chats.find((c) => c.id === activeChatId);
+      if (!active) active = createNewChat(true);
+      if (active.turns.length === 0) active.title = shortTitle(query);
+
+      const turn = { query, loading: true, response: null };
+      active.turns.push(turn);
+      claimInput.value = "";
+      sendBtn.disabled = true;
+      renderSidebar();
+      renderChat(true);
+
+      try {
+        const resp = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, mode: currentMode }),
+        });
+        const data = await resp.json();
+        turn.loading = false;
+        turn.response = data;
+      } catch (err) {
+        turn.loading = false;
+        turn.response = { error: "Could not reach backend server. Ensure `python web_app.py` is running." };
+      } finally {
+        sendBtn.disabled = false;
+        renderChat();
+        claimInput.focus();
+      }
+    });
+
+    // Hydrate recent chats from logs/audit.jsonl on startup
+    async function initHistory() {
+      try {
+        const resp = await fetch("/api/history");
+        const data = await resp.json();
+        if (data.items && data.items.length) {
+          chats = data.items.map((item, idx) => {
+            const v = (item.verdict || "").startsWith("REAL")
+              ? "REAL"
+              : (item.verdict || "").startsWith("FAKE")
+              ? "FAKE"
+              : "UNVERIFIED";
+            const headline = item.counter_truth || item.reason || item.verdict;
+            return {
+              id: "hist_" + idx,
+              title: shortTitle(item.query || "Verification"),
+              turns: [{
+                query: item.query,
+                loading: false,
+                response: {
+                  mode: "live",
+                  verdict: v,
+                  headline,
+                  reason: item.reason,
+                  confidence: item.confidence,
+                  avg_credibility: item.avg_domain_credibility,
+                  latency_s: item.latency_s,
+                  sources: (item.sources || []).map((s) => ({
+                    publisher: s.publisher,
+                    url: s.url,
+                    snippet: s.passage,
+                    trust_weight: s.trust_weight,
+                    trust_tier: s.trust_weight >= 0.9 ? "High Authority" : (s.trust_weight >= 0.75 ? "Reputable News" : (s.trust_weight >= 0.5 ? "Moderate" : "Unverified / Low")),
+                  })),
+                },
+              }],
+            };
+          });
+          activeChatId = chats[0].id;
+          renderSidebar();
+          renderChat();
+          return;
+        }
+      } catch (_) {}
+      createNewChat(true);
+    }
+
+    initHistory();
+  </script>
+</body>
+</html>
